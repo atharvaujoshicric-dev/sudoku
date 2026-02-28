@@ -1,157 +1,159 @@
 import streamlit as st
+import numpy as np
 import random
-import copy
-import json
 import os
 
-st.set_page_config(page_title="Sudoku But Make It GenZ", layout="centered")
+st.set_page_config(page_title="Sudoku Roast Edition", layout="centered")
 
-# ---------------------------
+# ------------------------------
 # Gen Z Taunts
-# ---------------------------
-
-TAUNTS = [
+# ------------------------------
+GENZ_TAUNTS = [
     "Bro really thought that was correct 💀",
-    "Nahhh this ain’t it chief 😭",
-    "Math left the chat 🧠🚪",
-    "Confidence was high, accuracy was low.",
-    "Delulu is not the solulu.",
-    "You had ONE job.",
-    "Brain buffering... please wait.",
-    "This ain't kindergarten Sudoku.",
-    "Skill issue detected.",
+    "That move was illegal… just like your WiFi speed.",
+    "Confidence level: 100. Accuracy level: 0.",
+    "Are you solving Sudoku or inventing new math?",
+    "This ain’t it chief.",
+    "Brain.exe has stopped working.",
+    "You almost had it… almost.",
+    "Sudoku watching you like 👁👄👁",
+    "That number said 'not today'.",
+    "It’s giving… wrong."
 ]
 
-# ---------------------------
+# ------------------------------
 # Sudoku Generator
-# ---------------------------
-
+# ------------------------------
 def is_valid(board, row, col, num):
-    for i in range(9):
-        if board[row][i] == num or board[i][col] == num:
-            return False
-
+    if num in board[row]:
+        return False
+    if num in board[:, col]:
+        return False
     start_row, start_col = 3 * (row // 3), 3 * (col // 3)
-    for i in range(3):
-        for j in range(3):
-            if board[start_row + i][start_col + j] == num:
-                return False
+    if num in board[start_row:start_row+3, start_col:start_col+3]:
+        return False
     return True
 
-def solve(board):
+def solve_board(board):
     for row in range(9):
         for col in range(9):
             if board[row][col] == 0:
-                nums = list(range(1,10))
-                random.shuffle(nums)
-                for num in nums:
+                for num in range(1, 10):
                     if is_valid(board, row, col, num):
                         board[row][col] = num
-                        if solve(board):
+                        if solve_board(board):
                             return True
                         board[row][col] = 0
                 return False
     return True
 
-def generate_sudoku():
-    board = [[0]*9 for _ in range(9)]
-    solve(board)
+def generate_full_board():
+    board = np.zeros((9,9), dtype=int)
+    solve_board(board)
+    return board
 
-    # remove numbers
-    puzzle = copy.deepcopy(board)
-    for _ in range(45):  # difficulty
-        row = random.randint(0,8)
-        col = random.randint(0,8)
-        puzzle[row][col] = 0
+def remove_numbers(board, difficulty):
+    removed = {"Easy":30, "Medium":40, "Hard":50}
+    puzzle = board.copy()
+    cells = list(range(81))
+    random.shuffle(cells)
+    for i in cells[:removed[difficulty]]:
+        puzzle[i//9][i%9] = 0
+    return puzzle
 
-    return puzzle, board
+# ------------------------------
+# Solved Counter Persistence
+# ------------------------------
+COUNTER_FILE = "solved_count.txt"
 
-# ---------------------------
-# Solver Count Tracking
-# ---------------------------
-
-COUNTER_FILE = "solver_count.json"
-
-def get_solver_count():
+def get_solved_count():
     if not os.path.exists(COUNTER_FILE):
-        with open(COUNTER_FILE, "w") as f:
-            json.dump({"count": 0}, f)
+        return 0
     with open(COUNTER_FILE, "r") as f:
-        return json.load(f)["count"]
+        return int(f.read())
 
-def increment_solver_count():
-    count = get_solver_count() + 1
+def increment_solved_count():
+    count = get_solved_count() + 1
     with open(COUNTER_FILE, "w") as f:
-        json.dump({"count": count}, f)
+        f.write(str(count))
 
-# ---------------------------
-# Session State Setup
-# ---------------------------
+# ------------------------------
+# Initialize Session
+# ------------------------------
+if "solution" not in st.session_state:
+    full_board = generate_full_board()
+    st.session_state.solution = full_board
+    st.session_state.puzzle = remove_numbers(full_board, "Easy")
+    st.session_state.difficulty = "Easy"
+    st.session_state.completed = False
 
-if "puzzle" not in st.session_state:
-    puzzle, solution = generate_sudoku()
-    st.session_state.puzzle = puzzle
-    st.session_state.solution = solution
-    st.session_state.user_grid = copy.deepcopy(puzzle)
-    st.session_state.solved = False
-
-# ---------------------------
+# ------------------------------
 # UI
-# ---------------------------
+# ------------------------------
+st.title("🧠 Sudoku: Roast Edition")
 
-st.title("🧩 Sudoku But Make It Gen-Z")
-st.caption("Solve it if you’re not fake smart.")
+difficulty = st.selectbox(
+    "Select Difficulty",
+    ["Easy", "Medium", "Hard"],
+    index=["Easy","Medium","Hard"].index(st.session_state.difficulty)
+)
 
-solver_count = get_solver_count()
-st.metric("🏆 People Who Actually Solved It", solver_count)
+if difficulty != st.session_state.difficulty:
+    full_board = generate_full_board()
+    st.session_state.solution = full_board
+    st.session_state.puzzle = remove_numbers(full_board, difficulty)
+    st.session_state.difficulty = difficulty
+    st.session_state.completed = False
 
-# ---------------------------
-# Grid Display
-# ---------------------------
+if st.button("🔄 New Game"):
+    full_board = generate_full_board()
+    st.session_state.solution = full_board
+    st.session_state.puzzle = remove_numbers(full_board, difficulty)
+    st.session_state.completed = False
+
+st.write("Fill the empty cells. Wrong move = public humiliation.")
+
+# ------------------------------
+# Sudoku Grid
+# ------------------------------
+user_input = np.zeros((9,9), dtype=int)
 
 for i in range(9):
     cols = st.columns(9)
     for j in range(9):
-        if st.session_state.puzzle[i][j] == 0:
-            value = cols[j].number_input(
-                "",
-                min_value=1,
-                max_value=9,
-                step=1,
-                key=f"{i}-{j}"
-            )
-            st.session_state.user_grid[i][j] = value
-        else:
+        if st.session_state.puzzle[i][j] != 0:
             cols[j].markdown(f"### {st.session_state.puzzle[i][j]}")
+            user_input[i][j] = st.session_state.puzzle[i][j]
+        else:
+            value = cols[j].text_input(
+                "",
+                key=f"{i}-{j}",
+                max_chars=1
+            )
+            if value.isdigit():
+                user_input[i][j] = int(value)
 
-# ---------------------------
+# ------------------------------
 # Check Button
-# ---------------------------
-
-if st.button("Check My Genius 🧠"):
+# ------------------------------
+if st.button("✅ Check Solution"):
     correct = True
     for i in range(9):
         for j in range(9):
-            if st.session_state.user_grid[i][j] != st.session_state.solution[i][j]:
+            if user_input[i][j] != st.session_state.solution[i][j]:
                 correct = False
-                break
 
     if correct:
-        st.success("Okay genius. You ate that. 🧠🔥")
-        if not st.session_state.solved:
-            increment_solver_count()
-            st.session_state.solved = True
+        if not st.session_state.completed:
+            increment_solved_count()
+            st.session_state.completed = True
+        st.success("YOU ATE THAT. Sudoku defeated. 🏆")
     else:
-        st.error(random.choice(TAUNTS))
+        st.error(random.choice(GENZ_TAUNTS))
 
-# ---------------------------
-# New Game
-# ---------------------------
-
-if st.button("New Puzzle 🔄"):
-    puzzle, solution = generate_sudoku()
-    st.session_state.puzzle = puzzle
-    st.session_state.solution = solution
-    st.session_state.user_grid = copy.deepcopy(puzzle)
-    st.session_state.solved = False
-    st.experimental_rerun()
+# ------------------------------
+# Show Solved Count
+# ------------------------------
+st.markdown("---")
+st.subheader("🏆 Total Successful Solves:")
+st.write(get_solved_count())
